@@ -171,3 +171,8 @@ Known Limitations
 • In-Memory Caching Invalidation: Settings are cached using IMemoryCache for zero-downtime updates on a single node; distributed multi-node deployments would require a Redis pub/sub backplane for instant cache synchronization.
 
 • Real-Time Push: Grade notifications use REST polling rather than SignalR WebSockets.
+
+🤖 Agent System & Sector Rules
+
+This repository is configured with the default agent sector rules located at:
+~/.agents/default/sectors/ASMS - Assignment & Submission Management System/rules.md
