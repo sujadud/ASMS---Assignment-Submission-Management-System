@@ -96,12 +96,10 @@ export const Navbar: React.FC = () => {
           <button
             type="button"
             onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-main)] hover:bg-[var(--border-color)]/30 transition-all text-xs font-medium"
-            title="Switch Theme Mode (System / Light / Dark)"
+            className="p-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-main)] hover:bg-[var(--border-color)]/30 hover:scale-105 transition-all flex items-center justify-center"
+            title={`Switch Theme Mode (Current: ${themeMode})`}
           >
             {getThemeIcon()}
-            <span className="capitalize hidden md:inline">{themeMode}</span>
-            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
           </button>
 
           {themeDropdownOpen && (
