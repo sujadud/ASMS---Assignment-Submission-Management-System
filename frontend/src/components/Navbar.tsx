@@ -1,17 +1,43 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useTheme } from '@/context/ThemeContext';
-import { LogOut, User as UserIcon, Shield, GraduationCap, BookOpen } from 'lucide-react';
+import { useTheme, ThemeMode } from '@/context/ThemeContext';
+import { 
+  LogOut, 
+  Shield, 
+  GraduationCap, 
+  BookOpen, 
+  Sun, 
+  Moon, 
+  Monitor, 
+  ChevronDown 
+} from 'lucide-react';
 import Link from 'next/link';
 
 export const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
-  const { settings } = useTheme();
+  const { settings, themeMode, setThemeMode } = useTheme();
 
-  const getRoleBadge = (role?: string) => {
-    switch (role) {
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setThemeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getRoleBadge = (role?: string | number) => {
+    const roleStr = typeof role === 'number' 
+      ? (role === 1 ? 'Admin' : role === 2 ? 'Teacher' : 'Student')
+      : role;
+
+    switch (roleStr) {
       case 'Admin':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
@@ -35,6 +61,17 @@ export const Navbar: React.FC = () => {
     }
   };
 
+  const getThemeIcon = () => {
+    switch (themeMode) {
+      case 'light':
+        return <Sun className="w-4 h-4 text-amber-400" />;
+      case 'dark':
+        return <Moon className="w-4 h-4 text-indigo-400" />;
+      default:
+        return <Monitor className="w-4 h-4 text-[var(--text-muted)]" />;
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 glass-nav border-b border-[var(--border-color)] px-6 py-3.5 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -53,8 +90,65 @@ export const Navbar: React.FC = () => {
         </Link>
       </div>
 
-      {user && (
-        <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4">
+        {/* Topbar Theme Mode Switcher Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-[var(--text-main)] hover:bg-[var(--border-color)]/30 transition-all text-xs font-medium"
+            title="Switch Theme Mode (System / Light / Dark)"
+          >
+            {getThemeIcon()}
+            <span className="capitalize hidden md:inline">{themeMode}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+          </button>
+
+          {themeDropdownOpen && (
+            <div className="absolute right-0 mt-2 w-36 glass-panel p-1.5 shadow-xl border border-[var(--border-color)] z-50 animate-fade-in flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => { setThemeMode('system'); setThemeDropdownOpen(false); }}
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                  themeMode === 'system' 
+                    ? 'bg-[var(--primary)] text-white font-semibold' 
+                    : 'text-[var(--text-main)] hover:bg-[var(--border-color)]/30'
+                }`}
+              >
+                <Monitor className="w-4 h-4" />
+                System
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setThemeMode('light'); setThemeDropdownOpen(false); }}
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                  themeMode === 'light' 
+                    ? 'bg-[var(--primary)] text-white font-semibold' 
+                    : 'text-[var(--text-main)] hover:bg-[var(--border-color)]/30'
+                }`}
+              >
+                <Sun className="w-4 h-4" />
+                Light
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setThemeMode('dark'); setThemeDropdownOpen(false); }}
+                className={`flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                  themeMode === 'dark' 
+                    ? 'bg-[var(--primary)] text-white font-semibold' 
+                    : 'text-[var(--text-main)] hover:bg-[var(--border-color)]/30'
+                }`}
+              >
+                <Moon className="w-4 h-4" />
+                Dark
+              </button>
+            </div>
+          )}
+        </div>
+
+        {user && (
           <div className="flex items-center gap-3 pl-4 border-l border-[var(--border-color)]">
             <div className="text-right hidden sm:block">
               <div className="text-sm font-semibold text-[var(--text-main)]">
@@ -70,13 +164,13 @@ export const Navbar: React.FC = () => {
             <button
               onClick={logout}
               title="Logout"
-              className="p-2 rounded-lg text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-2"
+              className="p-2 rounded-lg text-[var(--text-muted)] hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-1"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </header>
   );
 };

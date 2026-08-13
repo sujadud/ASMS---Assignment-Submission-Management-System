@@ -4,8 +4,12 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { PublicSettings } from '@/types';
 import apiClient from '@/lib/apiClient';
 
+export type ThemeMode = 'system' | 'light' | 'dark';
+
 interface ThemeContextType {
   settings: PublicSettings;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
   refreshSettings: () => Promise<void>;
 }
 
@@ -20,11 +24,26 @@ const defaultSettings: PublicSettings = {
 
 const ThemeContext = createContext<ThemeContextType>({
   settings: defaultSettings,
+  themeMode: 'system',
+  setThemeMode: () => {},
   refreshSettings: async () => {},
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<PublicSettings>(defaultSettings);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('system');
+
+  useEffect(() => {
+    const storedMode = localStorage.getItem('asms_theme_mode') as ThemeMode;
+    if (storedMode && ['system', 'light', 'dark'].includes(storedMode)) {
+      setThemeModeState(storedMode);
+    }
+  }, []);
+
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode);
+    localStorage.setItem('asms_theme_mode', mode);
+  };
 
   const fetchSettings = async () => {
     try {
@@ -43,12 +62,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (typeof document === 'undefined') return;
 
     const root = document.documentElement;
-    
-    // Remove existing theme attribute
     root.setAttribute('data-theme', theme);
     root.setAttribute('data-font', font);
 
-    // Apply font-family dynamically via Google Fonts if needed
     const fontId = 'dynamic-google-font';
     let linkEl = document.getElementById(fontId) as HTMLLinkElement;
     if (!linkEl) {
@@ -65,11 +81,44 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+
+    const applyMode = () => {
+      let isDark = true;
+      if (themeMode === 'system') {
+        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      } else {
+        isDark = themeMode === 'dark';
+      }
+
+      if (isDark) {
+        root.classList.add('dark');
+        root.classList.remove('light');
+        root.setAttribute('data-mode', 'dark');
+      } else {
+        root.classList.add('light');
+        root.classList.remove('dark');
+        root.setAttribute('data-mode', 'light');
+      }
+    };
+
+    applyMode();
+
+    if (themeMode === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => applyMode();
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, [themeMode]);
+
+  useEffect(() => {
     fetchSettings();
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ settings, refreshSettings: fetchSettings }}>
+    <ThemeContext.Provider value={{ settings, themeMode, setThemeMode, refreshSettings: fetchSettings }}>
       {children}
     </ThemeContext.Provider>
   );
