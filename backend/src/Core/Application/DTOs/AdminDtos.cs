@@ -45,6 +45,15 @@ public record UpdateSettingRequest(
     string Value
 );
 
+public record UpdateSettingsRequestDto(
+    string? ThemePreset,
+    string? FontFamily,
+    string? InstitutionName,
+    long? MaxUploadSizeBytes,
+    List<string>? AllowedExtensions,
+    decimal? LatePenaltyPercentPerDay
+);
+
 public record SystemOverviewDto(
     int TotalUsers,
     int TotalTeachers,
