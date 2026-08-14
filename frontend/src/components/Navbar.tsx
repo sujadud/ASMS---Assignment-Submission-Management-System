@@ -73,7 +73,7 @@ export const Navbar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-40 glass-nav border-b border-[var(--border-color)] px-6 py-3.5 flex items-center justify-between">
+    <header className="sticky top-0 z-30 glass-nav border-b border-[var(--border-color)] px-6 py-3.5 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <Link href="/dashboard" className="flex items-center gap-2.5 group">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[var(--primary)] to-[var(--accent)] flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-[var(--primary-glow)] transition-transform group-hover:scale-105">
