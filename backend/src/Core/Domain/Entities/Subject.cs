@@ -12,5 +12,8 @@ public class Subject
     [MaxLength(20)]
     public string Code { get; set; } = string.Empty; // e.g. "MATH101", "CSE402"
     
+    public Guid? TeacherId { get; set; }
+    public User? Teacher { get; set; }
+
     public ICollection<Assignment> Assignments { get; set; } = new List<Assignment>();
 }

@@ -21,16 +21,20 @@ export default function AcademicsPage() {
   const [editingSubjectId, setEditingSubjectId] = useState<string | null>(null);
   const [subjectName, setSubjectName] = useState('');
   const [subjectCode, setSubjectCode] = useState('');
+  const [assignedTeacherId, setAssignedTeacherId] = useState('');
+  const [teachers, setTeachers] = useState<{ id: string; fullName: string }[]>([]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [cRes, sRes] = await Promise.all([
+      const [cRes, sRes, uRes] = await Promise.all([
         apiClient.get<Classroom[]>('/admin/classrooms'),
         apiClient.get<Subject[]>('/admin/subjects'),
+        apiClient.get<{ id: string; fullName: string; role: string }[]>('/admin/users'),
       ]);
       setClassrooms(cRes.data);
       setSubjects(sRes.data);
+      setTeachers(uRes.data.filter((u) => u.role === 'Teacher'));
     } catch (err) {
       console.error(err);
     } finally {
@@ -72,10 +76,11 @@ export default function AcademicsPage() {
   const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = { name: subjectName, code: subjectCode, teacherId: assignedTeacherId || null };
       if (editingSubjectId) {
-        await apiClient.put(`/admin/subjects/${editingSubjectId}`, { name: subjectName, code: subjectCode });
+        await apiClient.put(`/admin/subjects/${editingSubjectId}`, payload);
       } else {
-        await apiClient.post('/admin/subjects', { name: subjectName, code: subjectCode });
+        await apiClient.post('/admin/subjects', payload);
       }
       setShowSubjectModal(false);
       fetchData();
@@ -178,6 +183,7 @@ export default function AcademicsPage() {
                 setEditingSubjectId(null);
                 setSubjectName('');
                 setSubjectCode('');
+                setAssignedTeacherId('');
                 setShowSubjectModal(true);
               }}
               className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold flex items-center gap-1.5"
@@ -192,6 +198,7 @@ export default function AcademicsPage() {
                 <tr className="border-b border-[var(--border-color)] bg-[var(--bg-sidebar)]/50 text-xs font-semibold uppercase text-[var(--text-muted)]">
                   <th className="p-3.5">Subject Code</th>
                   <th className="p-3.5">Subject Title</th>
+                  <th className="p-3.5">Assigned Teacher</th>
                   <th className="p-3.5 text-right">Actions</th>
                 </tr>
               </thead>
@@ -200,12 +207,22 @@ export default function AcademicsPage() {
                   <tr key={s.id} className="hover:bg-[var(--border-color)]/20">
                     <td className="p-3.5 font-mono font-semibold text-[var(--primary)]">{s.code}</td>
                     <td className="p-3.5 text-[var(--text-main)]">{s.name}</td>
+                    <td className="p-3.5">
+                      {s.teacherName ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                          {s.teacherName}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-[var(--text-muted)] italic">Unassigned</span>
+                      )}
+                    </td>
                     <td className="p-3.5 text-right space-x-1">
                       <button
                         onClick={() => {
                           setEditingSubjectId(s.id);
                           setSubjectName(s.name);
                           setSubjectCode(s.code);
+                          setAssignedTeacherId(s.teacherId || '');
                           setShowSubjectModal(true);
                         }}
                         className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--primary)]"
@@ -229,7 +246,7 @@ export default function AcademicsPage() {
 
       {/* Classroom Modal */}
       {showClassModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[999] overflow-y-auto bg-black/80 backdrop-blur-sm flex min-h-full items-center justify-center p-4 sm:p-6">
           <div className="glass-panel w-full max-w-md p-6 relative">
             <button onClick={() => setShowClassModal(false)} className="absolute right-4 top-4 text-[var(--text-muted)]">
               <X className="w-5 h-5" />
@@ -271,7 +288,7 @@ export default function AcademicsPage() {
 
       {/* Subject Modal */}
       {showSubjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[999] overflow-y-auto bg-black/80 backdrop-blur-sm flex min-h-full items-center justify-center p-4 sm:p-6">
           <div className="glass-panel w-full max-w-md p-6 relative">
             <button onClick={() => setShowSubjectModal(false)} className="absolute right-4 top-4 text-[var(--text-muted)]">
               <X className="w-5 h-5" />
@@ -301,6 +318,21 @@ export default function AcademicsPage() {
                   placeholder="Mathematics"
                   className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Assigned Teacher (Academic Mapping)</label>
+                <select
+                  value={assignedTeacherId}
+                  onChange={(e) => setAssignedTeacherId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)]"
+                >
+                  <option value="">Unassigned (Open to All Teachers)</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.fullName}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={() => setShowSubjectModal(false)} className="px-4 py-2 text-sm text-[var(--text-muted)]">Cancel</button>

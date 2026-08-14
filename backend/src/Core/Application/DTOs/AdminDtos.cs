@@ -33,12 +33,15 @@ public record CreateClassroomRequest(
 public record SubjectDto(
     Guid Id,
     string Name,
-    string Code
+    string Code,
+    Guid? TeacherId = null,
+    string? TeacherName = null
 );
 
 public record CreateSubjectRequest(
     string Name,
-    string Code
+    string Code,
+    Guid? TeacherId = null
 );
 
 public record UpdateSettingRequest(

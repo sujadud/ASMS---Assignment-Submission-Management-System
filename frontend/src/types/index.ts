@@ -40,6 +40,8 @@ export interface Subject {
   id: string;
   name: string;
   code: string;
+  teacherId?: string | null;
+  teacherName?: string | null;
 }
 
 export interface Assignment {

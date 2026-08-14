@@ -178,7 +178,8 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetSubjects()
     {
         var subjects = await _context.Subjects
-            .Select(s => new SubjectDto(s.Id, s.Name, s.Code))
+            .Include(s => s.Teacher)
+            .Select(s => new SubjectDto(s.Id, s.Name, s.Code, s.TeacherId, s.Teacher != null ? s.Teacher.FullName : null))
             .ToListAsync();
 
         return Ok(subjects);
@@ -190,13 +191,18 @@ public class AdminController : ControllerBase
         var subject = new Subject
         {
             Name = request.Name.Trim(),
-            Code = request.Code.Trim().ToUpper()
+            Code = request.Code.Trim().ToUpper(),
+            TeacherId = request.TeacherId
         };
 
         _context.Subjects.Add(subject);
         await _context.SaveChangesAsync();
 
-        return Ok(new SubjectDto(subject.Id, subject.Name, subject.Code));
+        var teacherName = request.TeacherId.HasValue 
+            ? (await _context.Users.FindAsync(request.TeacherId.Value))?.FullName 
+            : null;
+
+        return Ok(new SubjectDto(subject.Id, subject.Name, subject.Code, subject.TeacherId, teacherName));
     }
 
     [HttpPut("subjects/{id}")]
@@ -207,6 +213,7 @@ public class AdminController : ControllerBase
 
         subject.Name = request.Name.Trim();
         subject.Code = request.Code.Trim().ToUpper();
+        subject.TeacherId = request.TeacherId;
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Subject updated successfully." });
