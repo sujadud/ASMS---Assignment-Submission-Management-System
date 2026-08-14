@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import apiClient from '@/lib/apiClient';
 import { Assignment, Classroom, Subject } from '@/types';
-import { FileText, Plus, Calendar, CheckCircle2, Clock, Trash2, Edit2, X, Eye } from 'lucide-react';
+import { FileText, Plus, Calendar, Trash2, Edit2, X, Eye } from 'lucide-react';
 import Link from 'next/link';
 
 export default function TeacherAssignmentsPage() {
@@ -11,8 +12,13 @@ export default function TeacherAssignmentsPage() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
-  // Modal
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 6;
+
+  // Modal State
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -43,6 +49,7 @@ export default function TeacherAssignmentsPage() {
   };
 
   useEffect(() => {
+    setMounted(true);
     fetchData();
   }, []);
 
@@ -135,6 +142,12 @@ export default function TeacherAssignmentsPage() {
     }
   };
 
+  // Pagination Calculations
+  const totalPages = Math.max(1, Math.ceil(assignments.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(assignments.length, startIndex + pageSize);
+  const paginatedAssignments = assignments.slice(startIndex, endIndex);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -163,79 +176,119 @@ export default function TeacherAssignmentsPage() {
           No assignments found. Click "Create Assignment" above to create one.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {assignments.map((a) => (
-            <div key={a.id} className="glass-panel p-6 space-y-4 relative flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                    {a.subjectName} • {a.classroomName}
-                  </span>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {paginatedAssignments.map((a) => (
+              <div key={a.id} className="glass-panel p-6 space-y-4 relative flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                      {a.subjectName} • {a.classroomName}
+                    </span>
 
-                  <button
-                    onClick={() => handleTogglePublish(a.id)}
-                    className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
-                      a.isPublished
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-                        : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
-                    }`}
+                    <button
+                      onClick={() => handleTogglePublish(a.id)}
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-all ${
+                        a.isPublished
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+                      }`}
+                    >
+                      {a.isPublished ? 'Published' : 'Draft'}
+                    </button>
+                  </div>
+
+                  <h2 className="text-lg font-bold text-[var(--text-main)] line-clamp-1">{a.title}</h2>
+                  <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2">{a.description}</p>
+                </div>
+
+                <div className="pt-4 border-t border-[var(--border-color)] flex items-center justify-between text-xs text-[var(--text-muted)]">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-[var(--primary)]" />
+                    Due: <span className="text-[var(--text-main)] font-semibold">{new Date(a.deadline).toLocaleString()}</span>
+                  </div>
+
+                  <div className="font-semibold text-[var(--text-main)]">
+                    Max Marks: {a.maxMarks}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <Link
+                    href={`/dashboard/submissions?assignmentId=${a.id}`}
+                    className="text-xs font-semibold text-[var(--primary)] hover:underline flex items-center gap-1"
                   >
-                    {a.isPublished ? 'Published' : 'Draft'}
-                  </button>
-                </div>
+                    <Eye className="w-3.5 h-3.5" /> View Submissions ({a.submissionCount})
+                  </Link>
 
-                <h2 className="text-lg font-bold text-[var(--text-main)] line-clamp-1">{a.title}</h2>
-                <p className="text-xs text-[var(--text-muted)] mt-1 line-clamp-2">{a.description}</p>
-              </div>
-
-              <div className="pt-4 border-t border-[var(--border-color)] flex items-center justify-between text-xs text-[var(--text-muted)]">
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-[var(--primary)]" />
-                  Due: <span className="text-[var(--text-main)] font-semibold">{new Date(a.deadline).toLocaleString()}</span>
-                </div>
-
-                <div className="font-semibold text-[var(--text-main)]">
-                  Max Marks: {a.maxMarks}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <Link
-                  href={`/dashboard/submissions?assignmentId=${a.id}`}
-                  className="text-xs font-semibold text-[var(--primary)] hover:underline flex items-center gap-1"
-                >
-                  <Eye className="w-3.5 h-3.5" /> View Submissions ({a.submissionCount})
-                </Link>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => openEditModal(a)}
-                    className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--primary)]"
-                    title="Edit"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(a.id)}
-                    className="p-1.5 rounded text-[var(--text-muted)] hover:text-rose-400"
-                    title="Delete"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => openEditModal(a)}
+                      className="p-1.5 rounded text-[var(--text-muted)] hover:text-[var(--primary)]"
+                      title="Edit"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(a.id)}
+                      className="p-1.5 rounded text-[var(--text-muted)] hover:text-rose-400"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="glass-panel px-6 py-4 flex items-center justify-between text-xs text-[var(--text-muted)]">
+            <div>
+              Showing <span className="font-semibold text-[var(--text-main)]">{assignments.length > 0 ? startIndex + 1 : 0}</span> to{' '}
+              <span className="font-semibold text-[var(--text-main)]">{endIndex}</span> of{' '}
+              <span className="font-semibold text-[var(--text-main)]">{assignments.length}</span> assignments
             </div>
-          ))}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] hover:bg-[var(--border-color)]/30 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[var(--text-main)] transition-colors"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                    currentPage === pageNum
+                      ? 'bg-[var(--primary)] text-white'
+                      : 'border border-[var(--border-color)] bg-[var(--bg-main)] hover:bg-[var(--border-color)]/30 text-[var(--text-main)]'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-3 py-1.5 rounded-lg border border-[var(--border-color)] bg-[var(--bg-main)] hover:bg-[var(--border-color)]/30 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-[var(--text-main)] transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-[999] overflow-y-auto bg-black/80 backdrop-blur-sm flex min-h-full items-center justify-center p-4 sm:p-6">
+      {/* Portal Modal */}
+      {showModal && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           {/* Modal Card */}
-          <div className="relative w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col max-h-[88vh] text-slate-100 animate-fade-in">
+          <div className="relative w-full max-w-2xl max-h-[85vh] rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col overflow-hidden text-slate-100 animate-fade-in">
             {/* 1. Modal Fixed Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
               <h2 className="text-lg font-bold text-white">
                 {editingId ? 'Edit Assignment' : 'Create New Assignment'}
               </h2>
@@ -260,7 +313,7 @@ export default function TeacherAssignmentsPage() {
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
 
@@ -270,7 +323,7 @@ export default function TeacherAssignmentsPage() {
                     rows={3}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                   />
                 </div>
 
@@ -280,7 +333,7 @@ export default function TeacherAssignmentsPage() {
                     <select
                       value={classroomId}
                       onChange={(e) => setClassroomId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                     >
                       {classrooms.map((c) => (
                         <option key={c.id} value={c.id}>{c.name}</option>
@@ -293,7 +346,7 @@ export default function TeacherAssignmentsPage() {
                     <select
                       value={subjectId}
                       onChange={(e) => setSubjectId(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                     >
                       {subjects.map((s) => (
                         <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
@@ -310,7 +363,7 @@ export default function TeacherAssignmentsPage() {
                       required
                       value={deadline}
                       onChange={(e) => setDeadline(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                     />
                   </div>
 
@@ -321,7 +374,7 @@ export default function TeacherAssignmentsPage() {
                       required
                       value={maxMarks}
                       onChange={(e) => setMaxMarks(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                     />
                   </div>
                 </div>
@@ -341,7 +394,7 @@ export default function TeacherAssignmentsPage() {
               </div>
 
               {/* 3. Modal Fixed Footer Actions */}
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-900/90 rounded-b-2xl">
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-900/90 rounded-b-2xl shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
@@ -358,7 +411,8 @@ export default function TeacherAssignmentsPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
