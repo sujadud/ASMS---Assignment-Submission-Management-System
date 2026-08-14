@@ -29,8 +29,8 @@ export default function TeacherAssignmentsPage() {
     try {
       const [aRes, cRes, sRes] = await Promise.all([
         apiClient.get<Assignment[]>('/teacher/assignments'),
-        apiClient.get<Classroom[]>('/admin/classrooms'),
-        apiClient.get<Subject[]>('/admin/subjects'),
+        apiClient.get<Classroom[]>('/teacher/classrooms'),
+        apiClient.get<Subject[]>('/teacher/subjects'),
       ]);
       setAssignments(aRes.data);
       setClassrooms(cRes.data);
@@ -46,15 +46,32 @@ export default function TeacherAssignmentsPage() {
     fetchData();
   }, []);
 
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
+    let currentClassrooms = classrooms;
+    let currentSubjects = subjects;
+    if (currentClassrooms.length === 0 || currentSubjects.length === 0) {
+      try {
+        const [cRes, sRes] = await Promise.all([
+          apiClient.get<Classroom[]>('/teacher/classrooms'),
+          apiClient.get<Subject[]>('/teacher/subjects'),
+        ]);
+        currentClassrooms = cRes.data;
+        currentSubjects = sRes.data;
+        setClassrooms(currentClassrooms);
+        setSubjects(currentSubjects);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     setEditingId(null);
     setTitle('');
     setDescription('');
     setDeadline(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16));
     setMaxMarks('100');
     setIsPublished(true);
-    setClassroomId(classrooms[0]?.id || '');
-    setSubjectId(subjects[0]?.id || '');
+    setClassroomId(currentClassrooms[0]?.id || '');
+    setSubjectId(currentSubjects[0]?.id || '');
     setError('');
     setShowModal(true);
   };
@@ -214,108 +231,130 @@ export default function TeacherAssignmentsPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="glass-panel w-full max-w-lg p-6 relative animate-fade-in my-8">
-            <button onClick={() => setShowModal(false)} className="absolute right-4 top-4 text-[var(--text-muted)]">
-              <X className="w-5 h-5" />
-            </button>
+        <div className="fixed inset-0 z-[999] overflow-y-auto bg-black/80 backdrop-blur-sm flex min-h-full items-center justify-center p-4 sm:p-6">
+          {/* Modal Card */}
+          <div className="relative w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col max-h-[88vh] text-slate-100 animate-fade-in">
+            {/* 1. Modal Fixed Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white">
+                {editingId ? 'Edit Assignment' : 'Create New Assignment'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <h2 className="text-xl font-bold text-[var(--text-main)] mb-4">
-              {editingId ? 'Edit Assignment' : 'Create New Assignment'}
-            </h2>
-
-            {error && <div className="mb-4 p-3 rounded bg-rose-500/10 text-rose-400 text-sm">{error}</div>}
-
-            <form onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Title</label>
-                <input
-                  type="text"
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Description / Instructions</label>
-                <textarea
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Target Classroom</label>
-                  <select
-                    value={classroomId}
-                    onChange={(e) => setClassroomId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
-                  >
-                    {classrooms.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
+            {/* 2. Modal Scrollable Form Body */}
+            <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
+              <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                {error && <div className="p-3 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">{error}</div>}
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Subject</label>
-                  <select
-                    value={subjectId}
-                    onChange={(e) => setSubjectId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
-                  >
-                    {subjects.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Deadline Date & Time</label>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Title</label>
                   <input
-                    type="datetime-local"
+                    type="text"
                     required
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Max Marks</label>
-                  <input
-                    type="number"
-                    required
-                    value={maxMarks}
-                    onChange={(e) => setMaxMarks(e.target.value)}
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Description / Instructions</label>
+                  <textarea
+                    rows={3}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Target Classroom</label>
+                    <select
+                      value={classroomId}
+                      onChange={(e) => setClassroomId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                    >
+                      {classrooms.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Subject</label>
+                    <select
+                      value={subjectId}
+                      onChange={(e) => setSubjectId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                    >
+                      {subjects.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Deadline Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      required
+                      value={deadline}
+                      onChange={(e) => setDeadline(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Max Marks</label>
+                    <input
+                      type="number"
+                      required
+                      value={maxMarks}
+                      onChange={(e) => setMaxMarks(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="pubCheck"
+                    checked={isPublished}
+                    onChange={(e) => setIsPublished(e.target.checked)}
+                    className="w-4 h-4 rounded text-[var(--primary)]"
+                  />
+                  <label htmlFor="pubCheck" className="text-sm font-medium text-[var(--text-main)]">
+                    Publish immediately for students
+                  </label>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="pubCheck"
-                  checked={isPublished}
-                  onChange={(e) => setIsPublished(e.target.checked)}
-                  className="w-4 h-4 rounded text-[var(--primary)]"
-                />
-                <label htmlFor="pubCheck" className="text-sm font-medium text-[var(--text-main)]">
-                  Publish immediately for students
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-sm text-[var(--text-muted)]">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-[var(--primary)] text-white text-sm font-semibold rounded-lg">Save Assignment</button>
+              {/* 3. Modal Fixed Footer Actions */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-900/90 rounded-b-2xl">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors shadow-lg shadow-indigo-500/30"
+                >
+                  Save Assignment
+                </button>
               </div>
             </form>
           </div>

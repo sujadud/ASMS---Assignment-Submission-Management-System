@@ -41,7 +41,15 @@ export default function UsersManagementPage() {
     fetchUsersAndClassrooms();
   }, []);
 
-  const openCreateModal = () => {
+  const openCreateModal = async () => {
+    if (classrooms.length === 0) {
+      try {
+        const cRes = await apiClient.get<Classroom[]>('/admin/classrooms');
+        setClassrooms(cRes.data);
+      } catch (e) {
+        console.error(e);
+      }
+    }
     setEditingUserId(null);
     setFullName('');
     setEmail('');
@@ -149,17 +157,17 @@ export default function UsersManagementPage() {
                     <td className="p-4 font-semibold text-[var(--text-main)]">{u.fullName}</td>
                     <td className="p-4 text-[var(--text-muted)]">{u.email}</td>
                     <td className="p-4">
-                      {u.role === 'Admin' && (
+                      {(u.role === 'Admin' || (u.role as any) === 1) && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
                           <Shield className="w-3 h-3" /> Admin
                         </span>
                       )}
-                      {u.role === 'Teacher' && (
+                      {(u.role === 'Teacher' || (u.role as any) === 2) && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                           <GraduationCap className="w-3 h-3" /> Teacher
                         </span>
                       )}
-                      {u.role === 'Student' && (
+                      {(u.role === 'Student' || (u.role as any) === 3) && (
                         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                           <BookOpen className="w-3 h-3" /> Student
                         </span>
@@ -197,104 +205,112 @@ export default function UsersManagementPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="glass-panel w-full max-w-md p-6 relative animate-fade-in">
-            <button
-              onClick={() => setShowModal(false)}
-              className="absolute right-4 top-4 text-[var(--text-muted)] hover:text-[var(--text-main)]"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <div className="fixed inset-0 z-[999] overflow-y-auto bg-black/80 backdrop-blur-sm flex min-h-full items-center justify-center p-4 sm:p-6">
+          {/* Modal Card */}
+          <div className="relative w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl flex flex-col max-h-[88vh] text-slate-100 animate-fade-in">
+            {/* 1. Modal Fixed Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white">
+                {editingUserId ? 'Edit User Profile' : 'Provision New User'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-            <h2 className="text-xl font-bold text-[var(--text-main)] mb-4">
-              {editingUserId ? 'Edit User Profile' : 'Provision New User'}
-            </h2>
+            {/* 2. Modal Scrollable Form Body */}
+            <form onSubmit={handleSaveUser} className="flex flex-col flex-1 overflow-hidden">
+              <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+                {formError && (
+                  <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+                    {formError}
+                  </div>
+                )}
 
-            {formError && (
-              <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
-                {formError}
-              </div>
-            )}
-
-            <form onSubmit={handleSaveUser} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">
-                  Password {editingUserId && '(Leave empty to keep current)'}
-                </label>
-                <input
-                  type="password"
-                  required={!editingUserId}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">System Role</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
-                >
-                  <option value="Student">Student</option>
-                  <option value="Teacher">Teacher</option>
-                  <option value="Admin">Administrator</option>
-                </select>
-              </div>
-
-              {role === 'Student' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Assigned Classroom</label>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">
+                    Password {editingUserId && '(Leave empty to keep current)'}
+                  </label>
+                  <input
+                    type="password"
+                    required={!editingUserId}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">System Role</label>
                   <select
-                    value={classroomId}
-                    onChange={(e) => setClassroomId(e.target.value)}
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as UserRole)}
                     className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
                   >
-                    <option value="">Select Classroom...</option>
-                    {classrooms.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.academicYear})
-                      </option>
-                    ))}
+                    <option value="Student">Student</option>
+                    <option value="Teacher">Teacher</option>
+                    <option value="Admin">Administrator</option>
                   </select>
                 </div>
-              )}
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-color)]">
+                {role === 'Student' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text-muted)] mb-1">Assigned Classroom</label>
+                    <select
+                      value={classroomId}
+                      onChange={(e) => setClassroomId(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-[var(--bg-main)] border border-[var(--border-color)] text-sm text-[var(--text-main)] focus:outline-none focus:border-[var(--primary)]"
+                    >
+                      <option value="">Select Classroom...</option>
+                      {classrooms.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.academicYear})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Modal Fixed Footer Actions */}
+              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-900/90 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-lg bg-transparent border border-[var(--border-color)] text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)]"
+                  className="px-4 py-2 text-sm font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={formLoading}
-                  className="px-4 py-2 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold shadow-md shadow-[var(--primary-glow)] hover:opacity-95"
+                  className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors shadow-lg shadow-indigo-500/30"
                 >
                   {formLoading ? 'Saving...' : 'Save User'}
                 </button>
