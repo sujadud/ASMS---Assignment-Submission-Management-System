@@ -427,3 +427,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+#project-build-files
+AGENT_RULES.md
+memory.md
+PHASES_AND_TASKS.md
+node_modules/
