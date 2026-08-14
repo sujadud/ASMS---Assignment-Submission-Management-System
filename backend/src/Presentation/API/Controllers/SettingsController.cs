@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/settings")]
 public class SettingsController : ControllerBase
 {
     private readonly ISettingService _settingService;
@@ -41,6 +41,7 @@ public class SettingsController : ControllerBase
     [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Admin")]
     public async Task<IActionResult> UpdateSettings([FromBody] UpdateSettingsRequestDto request)
     {
+        if (request == null) return BadRequest(new { message = "Request body cannot be null." });
         if (!string.IsNullOrWhiteSpace(request.ThemePreset))
             await _settingService.UpdateSettingAsync("ThemePreset", request.ThemePreset);
 

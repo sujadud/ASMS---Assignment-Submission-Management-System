@@ -63,6 +63,24 @@ public class TeacherController : ControllerBase
         return Ok(assignments);
     }
 
+    [HttpGet("classrooms")]
+    public async Task<IActionResult> GetClassrooms()
+    {
+        var classrooms = await _context.Classrooms
+            .Select(c => new ClassroomDto(c.Id, c.Name, c.AcademicYear, c.Students.Count))
+            .ToListAsync();
+        return Ok(classrooms);
+    }
+
+    [HttpGet("subjects")]
+    public async Task<IActionResult> GetSubjects()
+    {
+        var subjects = await _context.Subjects
+            .Select(s => new SubjectDto(s.Id, s.Name, s.Code))
+            .ToListAsync();
+        return Ok(subjects);
+    }
+
     [HttpPost("assignments")]
     public async Task<IActionResult> CreateAssignment([FromBody] CreateAssignmentRequest request)
     {
