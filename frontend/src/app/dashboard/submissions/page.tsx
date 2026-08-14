@@ -143,14 +143,25 @@ export default function SubmissionsReviewPage() {
                     </td>
 
                     <td className="p-4">
-                      <a
-                        href={`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api'}/student/download/${s.id}`}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await apiClient.get(`/student/download/${s.id}`, { responseType: 'blob' });
+                            const url = window.URL.createObjectURL(new Blob([res.data]));
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.setAttribute('download', s.originalFileName);
+                            document.body.appendChild(link);
+                            link.click();
+                            link.parentNode?.removeChild(link);
+                          } catch (err) {
+                            console.error('Failed to download file:', err);
+                          }
+                        }}
                         className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--primary)] hover:underline bg-[var(--primary-glow)] px-2.5 py-1 rounded-md border border-[var(--primary)]/20"
                       >
                         <Download className="w-3.5 h-3.5" /> {s.originalFileName}
-                      </a>
+                      </button>
                     </td>
 
                     <td className="p-4 text-xs text-[var(--text-muted)]">

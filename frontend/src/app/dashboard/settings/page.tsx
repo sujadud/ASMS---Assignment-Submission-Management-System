@@ -40,13 +40,16 @@ export default function SystemSettingsPage() {
         .map((s) => s.trim())
         .filter(Boolean);
 
+      const parsedMaxMb = parseFloat(maxUploadMb);
+      const parsedPenalty = parseFloat(latePenalty);
+
       const payload = {
         themePreset,
         fontFamily,
         institutionName,
-        maxUploadSizeBytes: Math.round(parseFloat(maxUploadMb) * 1024 * 1024),
+        maxUploadSizeBytes: isNaN(parsedMaxMb) ? 5242880 : Math.round(parsedMaxMb * 1024 * 1024),
         allowedExtensions: extList,
-        latePenaltyPercentPerDay: parseFloat(latePenalty),
+        latePenaltyPercentPerDay: isNaN(parsedPenalty) ? 0 : parsedPenalty,
       };
 
       await apiClient.put('/settings', payload);

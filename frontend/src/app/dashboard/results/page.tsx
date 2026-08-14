@@ -119,14 +119,25 @@ export default function GradebookPage() {
                     <span>Submitted: {new Date(s.submittedAt).toLocaleDateString()}</span>
                   </div>
 
-                  <a
-                    href={`${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api'}/student/download/${s.id}`}
-                    target="_blank"
-                    rel="noreferrer"
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await apiClient.get(`/student/download/${s.id}`, { responseType: 'blob' });
+                        const url = window.URL.createObjectURL(new Blob([res.data]));
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.setAttribute('download', s.originalFileName);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.parentNode?.removeChild(link);
+                      } catch (err) {
+                        console.error('Failed to download file:', err);
+                      }
+                    }}
                     className="inline-flex items-center gap-1 font-semibold text-[var(--primary)] hover:underline"
                   >
                     <Download className="w-3.5 h-3.5" /> Download Attached File ({s.originalFileName})
-                  </a>
+                  </button>
                 </div>
               </div>
             );
