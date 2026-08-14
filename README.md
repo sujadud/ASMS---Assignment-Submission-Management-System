@@ -128,48 +128,74 @@ The project uses EF Core Code-First Migrations with an automated initialization 
 
 • Standard demo accounts (Admin, Teacher, Student), classrooms, subjects, sample assignments, and default system settings are automatically seeded if the database tables are empty.
 
-🚀 Local Setup & Running Guide
+1. Quick Setup with Docker Compose (Recommended)
+
+Run the full stack (PostgreSQL database, ASP.NET Core Web API backend, and Next.js frontend) with a single command:
+
+```bash
+docker-compose up --build
+```
+
+• Web Portal: http://localhost:3000
+• Swagger OpenAPI UI: http://localhost:5000/swagger
+• Database: Automated schema creation via `database/init.sql` & EF Core migrations.
+
+2. Manual Local Setup
 
 Prerequisites
 
 • .NET 8 SDK
-
 • Node.js (v18+ or v20+)
-
 • PostgreSQL Database Server (v14+)
 
-1. Backend Setup
+Backend Setup
 
-# Navigate to the API entry point directory cd backend/src/Presentation/API # Restore dependencies dotnet restore # Update appsettings.json with your local PostgreSQL password # Apply database migrations (Program.cs also runs this automatically on app start) dotnet ef database update # Run the backend ASP.NET Core API dotnet run 
+```bash
+# Navigate to API directory
+cd backend/src/Presentation/API
+dotnet restore
+# Apply database migrations
+dotnet ef database update
+# Run backend Web API
+dotnet run
+```
 
-• Swagger API Endpoint: http://localhost:5000/swagger
+• Swagger Interactive API UI: http://localhost:5000/swagger
+• Static SQL Script: `database/init.sql` (can be executed directly in PostgreSQL/pgAdmin)
 
-2. Frontend Setup
+Frontend Setup
 
-# Navigate to the frontend directory cd frontend # Install dependencies npm install # Run the Next.js development server npm run dev 
+```bash
+# Navigate to frontend directory
+cd frontend
+npm install
+npm run dev
+```
 
-• Web Portal URL: http://localhost:3000
+• Web Portal: http://localhost:3000
 
 🧪 Running Unit Tests
 
 Unit tests cover critical business rules, role-based authorization constraints, and submission workflows using xUnit and Moq:
 
-# Navigate to the test project directory cd backend/tests/Application.UnitTests # Run unit tests dotnet test 
+```bash
+# Navigate to test project directory
+cd backend/tests/Application.UnitTests
+dotnet test
+```
 
 📌 Assumptions & Known Limitations
 
 Assumptions
 
-• Local Database Provisioning: Assumes PostgreSQL is installed and accessible locally on port 5432.
-
-• File Storage Provider: By default, file uploads are handled by LocalFileStorageProvider saving files under wwwroot/uploads with strict file size and extension checks enforced dynamically by SettingService.
-
+• Database Provisioning: Database can be initialized automatically via EF Core migrations (`Program.cs`) or manually using the standalone SQL script (`database/init.sql`).
+• File Storage Provider: By default, file uploads are handled by `LocalFileStorageProvider` saving files under `wwwroot/uploads` with strict file size and extension checks enforced dynamically by `SettingService`.
+• Academic Mapping: Administrators can explicitly assign/map Teachers to Curriculum Subjects in `/dashboard/academics`.
 • Resubmission Rule: Re-uploading an assignment before the deadline replaces the previous file submission if allowed by the global assignment policy.
 
 Known Limitations
 
-• In-Memory Caching Invalidation: Settings are cached using IMemoryCache for zero-downtime updates on a single node; distributed multi-node deployments would require a Redis pub/sub backplane for instant cache synchronization.
-
+• In-Memory Caching Invalidation: Settings are cached using `IMemoryCache` for zero-downtime updates on a single node; distributed multi-node deployments would require a Redis pub/sub backplane for instant cache synchronization.
 • Real-Time Push: Grade notifications use REST polling rather than SignalR WebSockets.
 
 🤖 Agent System & Sector Rules

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  postgres-db:
+    image: postgres:16-alpine
+    container_name: asms-postgres-db
+    environment:
+      POSTGRES_DB: asms_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d asms_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend-api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: asms-backend-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=Host=postgres-db;Database=asms_db;Username=postgres;Password=postgrespassword
+      - JwtSettings__Secret=ASMS_Super_Secret_JWT_Signing_Key_2026_OnnoRokom_Recruitment_Project_Key_Must_Be_Long!
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres-db:
+        condition: service_healthy
+
+  frontend-web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: asms-frontend-web
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000/api
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend-api
+
+volumes:
+  postgres_data:
