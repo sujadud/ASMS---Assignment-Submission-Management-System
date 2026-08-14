@@ -4,56 +4,146 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import apiClient from '@/lib/apiClient';
-import { SystemOverview } from '@/types';
+import { 
+  SystemOverview, 
+  User, 
+  Classroom, 
+  Subject, 
+  Assignment, 
+  StudentAssignment, 
+  StudentSubmission 
+} from '@/types';
 import { 
   Users, 
-  UserCheck,
+  UserCheck, 
   GraduationCap, 
   BookOpen, 
   FileText, 
   CheckSquare, 
-  ArrowRight,
-  Shield,
-  Award,
-  Clock,
-  ExternalLink,
-  Calendar,
-  Layers,
-  Activity,
-  PlusCircle,
-  FileCheck,
-  Settings
+  Shield, 
+  Award, 
+  Clock, 
+  ExternalLink, 
+  Calendar, 
+  Layers, 
+  Activity, 
+  FileCheck, 
+  AlertTriangle 
 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { settings } = useTheme();
+  const [loading, setLoading] = useState(true);
+
+  // Admin Data
   const [overview, setOverview] = useState<SystemOverview | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<User[]>([]);
+  const [adminClassrooms, setAdminClassrooms] = useState<Classroom[]>([]);
+  const [adminSubjects, setAdminSubjects] = useState<Subject[]>([]);
+
+  // Teacher Data
+  const [teacherAssignments, setTeacherAssignments] = useState<Assignment[]>([]);
+  const [teacherClassrooms, setTeacherClassrooms] = useState<Classroom[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<Subject[]>([]);
+
+  // Student Data
+  const [studentAssignments, setStudentAssignments] = useState<StudentAssignment[]>([]);
+  const [studentSubmissions, setStudentSubmissions] = useState<StudentSubmission[]>([]);
 
   const isAdmin = user?.role === 'Admin' || (user?.role as any) === 1;
   const isTeacher = user?.role === 'Teacher' || (user?.role as any) === 2;
   const isStudent = user?.role === 'Student' || (user?.role as any) === 3;
 
   useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+
     if (isAdmin) {
-      setLoading(true);
-      apiClient.get<SystemOverview>('/admin/overview')
-        .then((res) => setOverview(res.data))
-        .catch(console.error)
+      Promise.all([
+        apiClient.get<SystemOverview>('/admin/overview').catch(() => null),
+        apiClient.get<User[]>('/admin/users').catch(() => ({ data: [] })),
+        apiClient.get<Classroom[]>('/admin/classrooms').catch(() => ({ data: [] })),
+        apiClient.get<Subject[]>('/admin/subjects').catch(() => ({ data: [] })),
+      ])
+        .then(([oRes, uRes, cRes, sRes]) => {
+          if (oRes?.data) setOverview(oRes.data);
+          if (uRes?.data) setAdminUsers(uRes.data);
+          if (cRes?.data) setAdminClassrooms(cRes.data);
+          if (sRes?.data) setAdminSubjects(sRes.data);
+        })
         .finally(() => setLoading(false));
+    } else if (isTeacher) {
+      Promise.all([
+        apiClient.get<Assignment[]>('/teacher/assignments').catch(() => ({ data: [] })),
+        apiClient.get<Classroom[]>('/teacher/classrooms').catch(() => ({ data: [] })),
+        apiClient.get<Subject[]>('/teacher/subjects').catch(() => ({ data: [] })),
+      ])
+        .then(([aRes, cRes, sRes]) => {
+          if (aRes?.data) setTeacherAssignments(aRes.data);
+          if (cRes?.data) setTeacherClassrooms(cRes.data);
+          if (sRes?.data) setTeacherSubjects(sRes.data);
+        })
+        .finally(() => setLoading(false));
+    } else if (isStudent) {
+      Promise.all([
+        apiClient.get<StudentAssignment[]>('/student/assignments').catch(() => ({ data: [] })),
+        apiClient.get<StudentSubmission[]>('/student/submissions').catch(() => ({ data: [] })),
+      ])
+        .then(([aRes, sRes]) => {
+          if (aRes?.data) setStudentAssignments(aRes.data);
+          if (sRes?.data) setStudentSubmissions(sRes.data);
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
-  }, [isAdmin]);
+  }, [user, isAdmin, isTeacher, isStudent]);
 
   if (!user) return null;
+
+  // Render Skeleton Loading
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-pulse p-4">
+        <div className="h-24 bg-[var(--bg-sidebar)]/50 rounded-2xl w-full"></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-28 bg-[var(--bg-sidebar)]/50 rounded-2xl"></div>
+          ))}
+        </div>
+        <div className="h-64 bg-[var(--bg-sidebar)]/50 rounded-2xl w-full"></div>
+      </div>
+    );
+  }
+
+  // Derived Admin Metrics
+  const totalStudentsCount = adminUsers.filter((u) => u.role === 'Student' || (u.role as any) === 3).length || overview?.totalStudents || 0;
+  const totalTeachersCount = adminUsers.filter((u) => u.role === 'Teacher' || (u.role as any) === 2).length || overview?.totalTeachers || 0;
+  const totalClassroomsCount = adminClassrooms.length || overview?.totalClassrooms || 0;
+  const totalSubjectsCount = adminSubjects.length || overview?.totalSubjects || 0;
+
+  // Derived Teacher Metrics
+  const teacherClassCount = teacherClassrooms.length;
+  const teacherStudentCount = teacherClassrooms.reduce((acc, c) => acc + (c.studentCount || 0), 0);
+  const publishedAssignmentsCount = teacherAssignments.filter((a) => a.isPublished).length;
+  const pendingGradingCount = teacherAssignments.reduce((acc, a) => acc + (a.submissionCount || 0), 0);
+
+  // Derived Student Metrics
+  const studentUniqueCoursesCount = Array.from(new Set(studentAssignments.map((a) => a.subjectName))).length;
+  const upcomingStudentTasksCount = studentAssignments.filter((a) => !a.hasSubmitted && new Date(a.deadline) > new Date()).length;
+  const submittedStudentTasksCount = studentSubmissions.length;
+  const gradedSubmissions = studentSubmissions.filter((s) => s.marksObtained !== null && s.marksObtained !== undefined);
+  const averageGradeFormatted = gradedSubmissions.length > 0
+    ? (gradedSubmissions.reduce((acc, curr) => acc + ((curr.marksObtained! / curr.maxMarks) * 100), 0) / gradedSubmissions.length).toFixed(0) + '%'
+    : 'N/A';
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
       {/* 🔴 ADMIN OVERVIEW */}
       {isAdmin && (
         <>
-          {/* Header Banner */}
           <div className="glass-panel p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[var(--text-main)] tracking-tight">
@@ -67,16 +157,16 @@ export default function DashboardPage() {
               href="/dashboard/settings"
               className="px-5 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold shadow-md shadow-[var(--primary-glow)] hover:opacity-95 transition-all flex items-center gap-2 self-start md:self-auto"
             >
-              <ExternalLink className="w-4 h-4" /> View Portal
+              <ExternalLink className="w-4 h-4" /> System Settings
             </Link>
           </div>
 
-          {/* 4 Stat Cards */}
+          {/* 4 Dynamic Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Total Students</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{overview?.totalStudents || '2,100'}</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{totalStudentsCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Users className="w-6 h-6" />
@@ -86,7 +176,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Total Teachers</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{overview?.totalTeachers || '30'}</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{totalTeachersCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
                 <UserCheck className="w-6 h-6" />
@@ -96,7 +186,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Active Classes</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{overview?.totalClassrooms || '4'}</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{totalClassroomsCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 <GraduationCap className="w-6 h-6" />
@@ -106,7 +196,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Total Courses</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{overview?.totalSubjects || '12'}</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{totalSubjectsCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <BookOpen className="w-6 h-6" />
@@ -116,34 +206,26 @@ export default function DashboardPage() {
 
           {/* Widgets Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Submission Trends Visual */}
+            {/* Classrooms List Widget */}
             <div className="lg:col-span-6 glass-panel p-6 space-y-4">
-              <h3 className="text-base font-bold text-[var(--text-main)]">Submission Trends (This Week)</h3>
-              <div className="h-48 flex items-end justify-between gap-3 pt-6 pb-2 px-2 border-b border-[var(--border-color)]">
-                {[
-                  { day: 'Sun', v1: 65, v2: 28 },
-                  { day: 'Mon', v1: 108, v2: 66 },
-                  { day: 'Tue', v1: 82, v2: 54 },
-                  { day: 'Wed', v1: 135, v2: 118 },
-                  { day: 'Thu', v1: 73, v2: 101 },
-                  { day: 'Fri', v1: 101, v2: 72 },
-                  { day: 'Sat', v1: 126, v2: 109 },
-                ].map((item, idx) => (
-                  <div key={idx} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
-                    <div className="w-full flex items-end justify-center gap-1 h-full">
-                      <div
-                        className="w-1/2 bg-[var(--primary)] rounded-t transition-all group-hover:brightness-110"
-                        style={{ height: `${(item.v1 / 150) * 100}%` }}
-                      ></div>
-                      <div
-                        className="w-1/2 bg-indigo-400/50 rounded-t transition-all group-hover:brightness-110"
-                        style={{ height: `${(item.v2 / 150) * 100}%` }}
-                      ></div>
+              <h3 className="text-base font-bold text-[var(--text-main)]">Classroom Enrollment Overview</h3>
+              {adminClassrooms.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[var(--text-muted)]">No active classrooms configured yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {adminClassrooms.map((c) => (
+                    <div key={c.id} className="p-3.5 rounded-xl bg-[var(--bg-main)]/50 border border-[var(--border-color)] flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-sm text-[var(--text-main)]">{c.name}</div>
+                        <div className="text-xs text-[var(--text-muted)]">Academic Year: {c.academicYear}</div>
+                      </div>
+                      <span className="px-3 py-1 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        {c.studentCount} Students
+                      </span>
                     </div>
-                    <span className="text-xs font-medium text-[var(--text-muted)] mt-1">{item.day}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Quick Actions */}
@@ -152,36 +234,39 @@ export default function DashboardPage() {
               <div className="space-y-3 flex-1 flex flex-col justify-center">
                 <Link
                   href="/dashboard/users"
-                  className="w-full py-3 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm font-semibold text-center shadow transition-all"
+                  className="w-full py-3 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
                 >
-                  Add New Teacher
+                  Manage System Users
                 </Link>
                 <Link
                   href="/dashboard/academics"
-                  className="w-full py-3 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-sm font-semibold text-center shadow transition-all"
+                  className="w-full py-3 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
                 >
-                  Create New Class
+                  Manage Academic Setup
+                </Link>
+                <Link
+                  href="/dashboard/settings"
+                  className="w-full py-3 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
+                >
+                  Configure System Settings
                 </Link>
               </div>
             </div>
 
-            {/* Recent System Activity */}
+            {/* Dynamic System Activity */}
             <div className="lg:col-span-3 glass-panel p-6 space-y-4">
               <h3 className="text-base font-bold text-[var(--text-main)]">Recent System Activity</h3>
               <div className="space-y-3 text-xs">
-                {[
-                  { icon: ArrowRight, title: 'Adanamant System Activity', time: '3 hostes 4 hours ago' },
-                  { icon: FileText, title: 'Assignment Submission Management System', time: '3 hostes 4 hours ago' },
-                  { icon: Activity, title: 'Assignmonk System Assumed', time: '3 hostes 4 hours ago' },
-                  { icon: Settings, title: 'Application Assignment Setting', time: '3 hostes 4 hours ago' },
-                ].map((act, idx) => (
-                  <div key={idx} className="flex items-start gap-3 p-2 rounded-lg bg-[var(--bg-main)]/40">
+                {adminUsers.slice(0, 4).map((u) => (
+                  <div key={u.id} className="flex items-start gap-3 p-2 rounded-lg bg-[var(--bg-main)]/40">
                     <div className="p-1.5 rounded-full bg-indigo-500/10 text-indigo-400 mt-0.5">
-                      <act.icon className="w-3.5 h-3.5" />
+                      <Shield className="w-3.5 h-3.5" />
                     </div>
                     <div>
-                      <div className="font-semibold text-[var(--text-main)]">{act.title}</div>
-                      <div className="text-[var(--text-muted)] text-[10px]">{act.time}</div>
+                      <div className="font-semibold text-[var(--text-main)]">{u.fullName}</div>
+                      <div className="text-[var(--text-muted)] text-[10px]">
+                        Registered as <span className="font-semibold text-[var(--primary)]">{u.role}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -194,11 +279,10 @@ export default function DashboardPage() {
       {/* 🔵 TEACHER OVERVIEW */}
       {isTeacher && (
         <>
-          {/* Header Banner */}
           <div className="glass-panel p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[var(--text-main)] tracking-tight">
-                Welcome, Dr. {user.fullName}
+                Welcome, {user.fullName}
               </h1>
               <p className="text-sm text-[var(--text-muted)] mt-1">
                 {settings.institutionName} • Assignment & Submission Management System
@@ -208,16 +292,16 @@ export default function DashboardPage() {
               href="/dashboard/assignments"
               className="px-5 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold shadow-md shadow-[var(--primary-glow)] hover:opacity-95 transition-all flex items-center gap-2 self-start md:self-auto"
             >
-              <Layers className="w-4 h-4" /> Class Overview
+              <Layers className="w-4 h-4" /> Manage Assignments
             </Link>
           </div>
 
-          {/* 4 Stat Cards */}
+          {/* 4 Dynamic Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Assigned Classes</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">4</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{teacherClassCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Users className="w-6 h-6" />
@@ -227,7 +311,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Total Students</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">180</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{teacherStudentCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
                 <UserCheck className="w-6 h-6" />
@@ -237,7 +321,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Published Assignments</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">15</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{publishedAssignmentsCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <FileText className="w-6 h-6" />
@@ -246,8 +330,8 @@ export default function DashboardPage() {
 
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
-                <div className="text-xs font-medium text-[var(--text-muted)]">Pending Grading</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">35</div>
+                <div className="text-xs font-medium text-[var(--text-muted)]">Submissions Received</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{pendingGradingCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 <CheckSquare className="w-6 h-6" />
@@ -258,94 +342,67 @@ export default function DashboardPage() {
           {/* Class & Assignment Overview Table */}
           <div className="glass-panel p-6 space-y-4">
             <h3 className="text-lg font-bold text-[var(--text-main)]">Class & Assignment Overview</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border-color)] text-xs text-[var(--text-muted)] uppercase tracking-wider">
-                    <th className="py-3 px-4">Class Name</th>
-                    <th className="py-3 px-4">Subject</th>
-                    <th className="py-3 px-4">Assignment Title</th>
-                    <th className="py-3 px-4">Submission Rate</th>
-                    <th className="py-3 px-4">Deadline</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-color)]">
-                  <tr>
-                    <td className="py-3 px-4 font-semibold text-[var(--text-main)]">CSE-102 Task</td>
-                    <td className="py-3 px-4 text-[var(--text-muted)]">Science Tempute</td>
-                    <td className="py-3 px-4 text-[var(--text-main)]">Assignment Task</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 bg-[var(--bg-main)] h-2 rounded-full overflow-hidden border border-[var(--border-color)]">
-                          <div className="bg-[var(--primary)] h-full w-[65%]"></div>
-                        </div>
-                        <span className="text-xs font-semibold text-[var(--text-main)]">15</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-[var(--text-muted)]">Aug 13, 2026</td>
-                    <td className="py-3 px-4 text-right">
-                      <Link href="/dashboard/submissions" className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block">
-                        Action
-                      </Link>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 px-4 font-semibold text-[var(--text-main)]">CSE-102 Task</td>
-                    <td className="py-3 px-4 text-[var(--text-muted)]">Science</td>
-                    <td className="py-3 px-4 text-[var(--text-main)]">Assignment Task</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 bg-[var(--bg-main)] h-2 rounded-full overflow-hidden border border-[var(--border-color)]">
-                          <div className="bg-[var(--primary)] h-full w-[85%]"></div>
-                        </div>
-                        <span className="text-xs font-semibold text-[var(--text-main)]">23</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-xs text-[var(--text-muted)]">Aug 10, 2026</td>
-                    <td className="py-3 px-4 text-right">
-                      <Link href="/dashboard/submissions" className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block">
-                        Action
-                      </Link>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {teacherAssignments.length === 0 ? (
+              <div className="p-8 text-center text-xs text-[var(--text-muted)]">
+                No assignments created yet. Click "Manage Assignments" above to create one.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-color)] text-xs text-[var(--text-muted)] uppercase tracking-wider">
+                      <th className="py-3 px-4">Classroom</th>
+                      <th className="py-3 px-4">Subject</th>
+                      <th className="py-3 px-4">Assignment Title</th>
+                      <th className="py-3 px-4">Submissions</th>
+                      <th className="py-3 px-4">Deadline</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-color)]">
+                    {teacherAssignments.map((a) => (
+                      <tr key={a.id} className="hover:bg-[var(--border-color)]/20 transition-colors">
+                        <td className="py-3 px-4 font-semibold text-[var(--text-main)]">{a.classroomName}</td>
+                        <td className="py-3 px-4 text-[var(--text-muted)]">{a.subjectName}</td>
+                        <td className="py-3 px-4 text-[var(--text-main)] font-medium">{a.title}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                            {a.submissionCount} Submissions
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-xs text-[var(--text-muted)]">
+                          {new Date(a.deadline).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
+                            a.isPublished
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}>
+                            {a.isPublished ? 'Published' : 'Draft'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Link
+                            href={`/dashboard/submissions?assignmentId=${a.id}`}
+                            className="px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block"
+                          >
+                            Review Submissions
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Bottom Widgets */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Submission Progress Chart */}
-            <div className="lg:col-span-5 glass-panel p-6 space-y-4">
-              <h3 className="text-base font-bold text-[var(--text-main)]">Submission Progress Chart</h3>
-              <div className="flex items-center justify-around py-4">
-                <div className="w-32 h-32 rounded-full border-8 border-indigo-500 border-t-emerald-400 border-r-amber-500 flex items-center justify-center font-black text-xl text-[var(--text-main)] shadow-inner">
-                  75%
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-indigo-500"></span>
-                    <span className="text-[var(--text-main)] font-medium">CSE-102 Task</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-indigo-400"></span>
-                    <span className="text-[var(--text-muted)]">75% submitted</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-                    <span className="text-[var(--text-muted)]">15% pending</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-rose-500"></span>
-                    <span className="text-[var(--text-muted)]">10% late</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Quick Actions */}
-            <div className="lg:col-span-3 glass-panel p-6 flex flex-col justify-between">
+            <div className="lg:col-span-4 glass-panel p-6 flex flex-col justify-between">
               <h3 className="text-base font-bold text-[var(--text-main)] mb-4">Quick Actions</h3>
               <div className="space-y-3 flex-1 flex flex-col justify-center">
                 <Link
@@ -354,38 +411,47 @@ export default function DashboardPage() {
                 >
                   Create New Assignment
                 </Link>
-                <button
-                  type="button"
-                  className="w-full py-2.5 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
-                >
-                  Post Announcement
-                </button>
                 <Link
                   href="/dashboard/submissions"
                   className="w-full py-2.5 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
                 >
-                  Bulk Grading
+                  Review & Grade Submissions
                 </Link>
               </div>
             </div>
 
             {/* Upcoming Deadlines */}
-            <div className="lg:col-span-4 glass-panel p-6 space-y-4">
-              <h3 className="text-base font-bold text-[var(--text-main)]">Upcoming Deadlines</h3>
-              <div className="space-y-3 text-xs">
-                <div className="p-2.5 rounded-lg border-l-4 border-amber-500 bg-[var(--bg-main)]/40">
-                  <div className="font-semibold text-[var(--text-main)]">CSE-102 Data Structures Task</div>
-                  <div className="text-[var(--text-muted)] mt-0.5">Aug 13, 2026 11:59 PM - <span className="text-amber-400 font-semibold">Amber</span></div>
+            <div className="lg:col-span-8 glass-panel p-6 space-y-4">
+              <h3 className="text-base font-bold text-[var(--text-main)]">Upcoming Assignment Deadlines</h3>
+              {teacherAssignments.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[var(--text-muted)]">No active deadlines.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  {teacherAssignments
+                    .slice()
+                    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+                    .slice(0, 4)
+                    .map((a) => {
+                      const isPast = new Date() > new Date(a.deadline);
+                      return (
+                        <div
+                          key={a.id}
+                          className={`p-3 rounded-lg border-l-4 ${
+                            isPast ? 'border-rose-500 bg-rose-500/5' : 'border-amber-500 bg-amber-500/5'
+                          }`}
+                        >
+                          <div className="font-semibold text-[var(--text-main)] truncate">{a.title}</div>
+                          <div className="text-[var(--text-muted)] mt-1 flex items-center justify-between">
+                            <span>{new Date(a.deadline).toLocaleString()}</span>
+                            <span className={`font-semibold ${isPast ? 'text-rose-400' : 'text-amber-400'}`}>
+                              {isPast ? 'Past Due' : 'Active'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
-                <div className="p-2.5 rounded-lg border-l-4 border-rose-500 bg-[var(--bg-main)]/40">
-                  <div className="font-semibold text-[var(--text-main)]">CSE-102 Data Structures Task</div>
-                  <div className="text-[var(--text-muted)] mt-0.5">Aug 13, 2026 11:59 PM - <span className="text-rose-400 font-semibold">past due</span></div>
-                </div>
-                <div className="p-2.5 rounded-lg border-l-4 border-rose-500 bg-[var(--bg-main)]/40">
-                  <div className="font-semibold text-[var(--text-main)]">CSE-102 Data Structures Task</div>
-                  <div className="text-[var(--text-muted)] mt-0.5">Aug 11, 2026 11:59 PM - <span className="text-rose-400 font-semibold">past due</span></div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </>
@@ -394,7 +460,6 @@ export default function DashboardPage() {
       {/* 🟢 STUDENT OVERVIEW */}
       {isStudent && (
         <>
-          {/* Header Banner */}
           <div className="glass-panel p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl md:text-3xl font-extrabold text-[var(--text-main)] tracking-tight">
@@ -408,16 +473,16 @@ export default function DashboardPage() {
               href="/dashboard/my-assignments"
               className="px-5 py-2.5 rounded-lg bg-[var(--primary)] text-white text-sm font-semibold shadow-md shadow-[var(--primary-glow)] hover:opacity-95 transition-all flex items-center gap-2 self-start md:self-auto"
             >
-              <Calendar className="w-4 h-4" /> View Calendar
+              <Calendar className="w-4 h-4" /> My Class Feed
             </Link>
           </div>
 
-          {/* 4 Stat Cards */}
+          {/* 4 Dynamic Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
-                <div className="text-xs font-medium text-[var(--text-muted)]">My Courses</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">4</div>
+                <div className="text-xs font-medium text-[var(--text-muted)]">Enrolled Subjects</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{studentUniqueCoursesCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
                 <BookOpen className="w-6 h-6" />
@@ -426,8 +491,8 @@ export default function DashboardPage() {
 
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
-                <div className="text-xs font-medium text-[var(--text-muted)]">Upcoming Assignments</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">3</div>
+                <div className="text-xs font-medium text-[var(--text-muted)]">Upcoming Tasks</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{upcomingStudentTasksCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <Clock className="w-6 h-6" />
@@ -437,7 +502,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Submitted Tasks</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">12</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{submittedStudentTasksCount}</div>
               </div>
               <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <FileCheck className="w-6 h-6" />
@@ -447,7 +512,7 @@ export default function DashboardPage() {
             <div className="glass-panel p-5 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-[var(--text-muted)]">Average Grade</div>
-                <div className="text-3xl font-black text-[var(--text-main)] mt-1">88%</div>
+                <div className="text-3xl font-black text-[var(--text-main)] mt-1">{averageGradeFormatted}</div>
               </div>
               <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                 <Award className="w-6 h-6" />
@@ -458,96 +523,83 @@ export default function DashboardPage() {
           {/* Assignments & Submission Status Table */}
           <div className="glass-panel p-6 space-y-4">
             <h3 className="text-lg font-bold text-[var(--text-main)]">Assignments & Submission Status</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--border-color)] text-xs text-[var(--text-muted)] uppercase tracking-wider">
-                    <th className="py-3 px-4">Course Name</th>
-                    <th className="py-3 px-4">Task Title</th>
-                    <th className="py-3 px-4">Due Date</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--border-color)]">
-                  <tr>
-                    <td className="py-3 px-4 font-semibold text-[var(--text-main)]">CSE-102</td>
-                    <td className="py-3 px-4 text-[var(--text-main)]">Data Structures Task</td>
-                    <td className="py-3 px-4 text-xs text-[var(--text-muted)]">Aug 13, 2026</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        Pending
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Link href="/dashboard/my-assignments" className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block">
-                        Submit
-                      </Link>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 px-4 font-semibold text-[var(--text-main)]">ENG-201</td>
-                    <td className="py-3 px-4 text-[var(--text-main)]">Literature Essay</td>
-                    <td className="py-3 px-4 text-xs text-[var(--text-muted)]">Aug 15, 2026</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                        Overdue
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Link href="/dashboard/results" className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block">
-                        View Grade
-                      </Link>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="py-3 px-4 font-semibold text-[var(--text-main)]">CSE-102</td>
-                    <td className="py-3 px-4 text-[var(--text-main)]">Assignment Task Cocontant</td>
-                    <td className="py-3 px-4 text-xs text-[var(--text-muted)]">Aug 10, 2026</td>
-                    <td className="py-3 px-4">
-                      <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5 w-fit">
-                        Graded <span className="w-2 h-2 rounded-full bg-emerald-500"></span> 92%
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Link href="/dashboard/results" className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block">
-                        Review
-                      </Link>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            {studentAssignments.length === 0 ? (
+              <div className="p-8 text-center text-xs text-[var(--text-muted)]">
+                No assignments published for your classroom yet.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-color)] text-xs text-[var(--text-muted)] uppercase tracking-wider">
+                      <th className="py-3 px-4">Subject</th>
+                      <th className="py-3 px-4">Task Title</th>
+                      <th className="py-3 px-4">Due Date</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-color)]">
+                    {studentAssignments.map((a) => {
+                      const isPast = new Date() > new Date(a.deadline);
+                      const isGraded = a.hasSubmitted && a.submissionStatus === 'Evaluated';
+
+                      return (
+                        <tr key={a.id} className="hover:bg-[var(--border-color)]/20 transition-colors">
+                          <td className="py-3 px-4 font-semibold text-[var(--text-main)]">{a.subjectName}</td>
+                          <td className="py-3 px-4 text-[var(--text-main)] font-medium">{a.title}</td>
+                          <td className="py-3 px-4 text-xs text-[var(--text-muted)]">
+                            {new Date(a.deadline).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4">
+                            {isGraded ? (
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                Graded ({a.marksObtained !== null && a.marksObtained !== undefined ? Math.round((a.marksObtained / a.maxMarks) * 100) : 100}%)
+                              </span>
+                            ) : a.hasSubmitted ? (
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                                Submitted
+                              </span>
+                            ) : isPast ? (
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                Overdue
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                Pending
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {a.hasSubmitted ? (
+                              <Link
+                                href="/dashboard/results"
+                                className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block"
+                              >
+                                View Grade
+                              </Link>
+                            ) : (
+                              <Link
+                                href="/dashboard/my-assignments"
+                                className="px-3.5 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-all inline-block"
+                              >
+                                Submit
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Bottom Widgets */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Assignment Completion Status Chart */}
-            <div className="lg:col-span-5 glass-panel p-6 space-y-4">
-              <h3 className="text-base font-bold text-[var(--text-main)]">Assignment Completion Status</h3>
-              <div className="flex items-center justify-around py-4">
-                <div className="w-32 h-32 rounded-full border-8 border-indigo-500 border-t-amber-500 border-r-rose-500 flex items-center justify-center font-black text-xl text-[var(--text-main)] shadow-inner">
-                  75%
-                </div>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-indigo-500"></span>
-                    <span className="text-[var(--text-main)] font-medium">Submitted 75%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-                    <span className="text-[var(--text-muted)]">Pending 15%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-rose-500"></span>
-                    <span className="text-[var(--text-muted)]">Overdue 10%</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Quick Actions */}
-            <div className="lg:col-span-3 glass-panel p-6 flex flex-col justify-between">
+            <div className="lg:col-span-4 glass-panel p-6 flex flex-col justify-between">
               <h3 className="text-base font-bold text-[var(--text-main)] mb-4">Quick Actions</h3>
               <div className="space-y-3 flex-1 flex flex-col justify-center">
                 <Link
@@ -560,34 +612,44 @@ export default function DashboardPage() {
                   href="/dashboard/results"
                   className="w-full py-2.5 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
                 >
-                  Check Grades
-                </Link>
-                <Link
-                  href="/dashboard/my-assignments"
-                  className="w-full py-2.5 px-4 rounded-lg bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white text-xs font-semibold text-center shadow transition-all"
-                >
-                  View Course Material
+                  Check Gradebook & Feedback
                 </Link>
               </div>
             </div>
 
             {/* Upcoming Deadlines */}
-            <div className="lg:col-span-4 glass-panel p-6 space-y-4">
+            <div className="lg:col-span-8 glass-panel p-6 space-y-4">
               <h3 className="text-base font-bold text-[var(--text-main)]">Upcoming Deadlines</h3>
-              <div className="space-y-3 text-xs">
-                <div className="p-2.5 rounded-lg border-l-4 border-amber-500 bg-[var(--bg-main)]/40">
-                  <div className="font-semibold text-[var(--text-main)]">CSE-102 Data Structures Task</div>
-                  <div className="text-[var(--text-muted)] mt-0.5">Aug 13, 2026 11:59 PM - <span className="text-amber-400 font-semibold">Amber</span></div>
+              {studentAssignments.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[var(--text-muted)]">No active deadlines.</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  {studentAssignments
+                    .filter((a) => !a.hasSubmitted)
+                    .slice()
+                    .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
+                    .slice(0, 4)
+                    .map((a) => {
+                      const isPast = new Date() > new Date(a.deadline);
+                      return (
+                        <div
+                          key={a.id}
+                          className={`p-3 rounded-lg border-l-4 ${
+                            isPast ? 'border-rose-500 bg-rose-500/5' : 'border-amber-500 bg-amber-500/5'
+                          }`}
+                        >
+                          <div className="font-semibold text-[var(--text-main)] truncate">{a.title} ({a.subjectName})</div>
+                          <div className="text-[var(--text-muted)] mt-1 flex items-center justify-between">
+                            <span>{new Date(a.deadline).toLocaleString()}</span>
+                            <span className={`font-semibold ${isPast ? 'text-rose-400' : 'text-amber-400'}`}>
+                              {isPast ? 'Past Due' : 'Active'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
-                <div className="p-2.5 rounded-lg border-l-4 border-amber-500 bg-[var(--bg-main)]/40">
-                  <div className="font-semibold text-[var(--text-main)]">ENG-201 Literature Essay</div>
-                  <div className="text-[var(--text-muted)] mt-0.5">Aug 15, 2026 11:59 PM - <span className="text-amber-400 font-semibold">Amber</span></div>
-                </div>
-                <div className="p-2.5 rounded-lg border-l-4 border-rose-500 bg-[var(--bg-main)]/40">
-                  <div className="font-semibold text-[var(--text-main)]">ENG-201 Literature Essay</div>
-                  <div className="text-[var(--text-muted)] mt-0.5">Aug 11, 2026 11:59 PM - <span className="text-rose-400 font-semibold">Red</span></div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </>
